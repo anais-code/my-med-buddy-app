@@ -3,6 +3,7 @@ import 'package:my_med_buddy_app/Services/authentication.dart';
 import 'signup_page.dart';
 import 'schedule_page.dart';
 import 'user_details_page.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -156,15 +157,16 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(height: 10),
 
               //forgot password hyperlink
-              //NOTE -- NEEDS IMPLEMENTATION
               Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25.0),
                   child: Align(
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
                           onTap: () {
-                            //need to implement auth code to reset password
-                            print("Forgot Password Text Clicked");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                            );
                           },
                           child: Text("Forgot Password?",
                               style: TextStyle(

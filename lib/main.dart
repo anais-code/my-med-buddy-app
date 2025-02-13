@@ -17,7 +17,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       //on start-up, app goes to sign up login main screen
-      home: SignupLoginPage(),
+      home: SignupLoginPage()
+
     );
   }
 }
