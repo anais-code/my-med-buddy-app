@@ -1,9 +1,13 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'pages/signup_login.dart';
+import 'package:my_med_buddy_app/Services/notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  //init notifications
+  Notifications().initNotification();
   await Firebase.initializeApp();
   runApp(const MyApp());
 }
@@ -15,10 +19,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      //on start-up, app goes to sign up login main screen
-      home: SignupLoginPage()
-
-    );
+        debugShowCheckedModeBanner: false,
+        //on start-up, app goes to sign up login main screen
+        home: SignupLoginPage());
   }
 }
