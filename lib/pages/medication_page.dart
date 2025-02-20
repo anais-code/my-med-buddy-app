@@ -6,8 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'schedule_page.dart';
 import 'health_data_page.dart';
 import 'milestone_page.dart';
-
-
+import 'add_med_page.dart';
+import 'package:my_med_buddy_app/widgets/section_divider.dart';
 
 class MedicationPage extends StatefulWidget {
   const MedicationPage({super.key});
@@ -24,10 +24,19 @@ class _MedicationPageState extends State<MedicationPage> {
   //declare obj of auth services class
   final AuthServices _authService = AuthServices();
 
+  //declare text editing controller for search bar
+  final _searchBarController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _fetchUserData();
+  }
+
+  @override
+  void dispose() {
+    _searchBarController.dispose();
+    super.dispose();
   }
 
   // Fetch user data from Firestore
@@ -36,7 +45,7 @@ class _MedicationPageState extends State<MedicationPage> {
       final User? user = _auth.currentUser;
       if (user != null) {
         final DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(user.uid).get();
+            await _firestore.collection('users').doc(user.uid).get();
 
         if (userDoc.exists) {
           setState(() {
@@ -73,11 +82,10 @@ class _MedicationPageState extends State<MedicationPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFE3E3),
+      backgroundColor: const Color(0xFFFDFFEF),
       // Light background color
       appBar: AppBar(
         title: Row(
@@ -121,7 +129,6 @@ class _MedicationPageState extends State<MedicationPage> {
         ],
       ),
 
-
       // Sidebar (Drawer)
       endDrawer: Drawer(
         child: ListView(
@@ -139,40 +146,39 @@ class _MedicationPageState extends State<MedicationPage> {
                     const Center(
                       child: CircularProgressIndicator(color: Colors.white),
                     )
-                  else
-                    if (_userData != null) ...[
-                      Text(
-                        '${_userData!['firstName']} ${_userData!['lastName']}',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  else if (_userData != null) ...[
+                    Text(
+                      '${_userData!['firstName']} ${_userData!['lastName']}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Age: ${_userData!['age'] ?? 'N/A'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Age: ${_userData!['age'] ?? 'N/A'}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Conditions: ${_userData!['conditions'] ?? 'N/A'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Conditions: ${_userData!['conditions'] ?? 'N/A'}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
-                    ] else
-                      const Text(
-                        'No user data found',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                    ),
+                  ] else
+                    const Text(
+                      'No user data found',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
+                    ),
                 ],
               ),
             ),
@@ -233,27 +239,72 @@ class _MedicationPageState extends State<MedicationPage> {
         ),
       ),
 
-
       //Body
       body: Column(
         children: [
-          // Centered title
-          Container(
-            height: 100, // Adjust height as needed
-            alignment: Alignment.center, // Center the text
-            child: const Text(
-              "Medication page",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+          SectionDivider(),
+          //sign up button
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const AddMedPage(),
+                  ),
+                );
+              },
+              child: Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFE3E3),
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: Color(0xFFFF5050),
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Add Medication',
+                        style: TextStyle(
+                          color: Color(0xFF545354),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
+                        ),
+                      ),
+                      SizedBox(width: 20),
+                      const Icon(Icons.add, color: Color(0xFF545354), size: 35)
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
 
+          SectionDivider(),
+          SizedBox(height: 8),
+
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: 16),
+              child: const Text(
+                "Current Medications",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
-
 
       // Bottom Snack Bar with Four Elements
       bottomNavigationBar: BottomAppBar(
@@ -265,13 +316,15 @@ class _MedicationPageState extends State<MedicationPage> {
             children: [
               // Schedule page icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_schedule_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_schedule_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   //Navigate to Schedule page
-                  Navigator.push(context,
+                  Navigator.push(
+                    context,
                     MaterialPageRoute(
                         builder: (context) => const SchedulePage()),
                   );
@@ -280,13 +333,15 @@ class _MedicationPageState extends State<MedicationPage> {
 
               //mediation page icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_medication_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_medication_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   //Navigate to medication page
-                  Navigator.push(context,
+                  Navigator.push(
+                    context,
                     MaterialPageRoute(
                         builder: (context) => const MedicationPage()),
                   );
@@ -295,13 +350,15 @@ class _MedicationPageState extends State<MedicationPage> {
 
               //health data icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_health_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_health_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   //Navigate to health data page
-                  Navigator.push(context,
+                  Navigator.push(
+                    context,
                     MaterialPageRoute(
                         builder: (context) => const HealthDataPage()),
                   );
@@ -310,13 +367,15 @@ class _MedicationPageState extends State<MedicationPage> {
 
               // Progress/milestone icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_progress_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_progress_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   //Navigate to milestone page
-                  Navigator.push(context,
+                  Navigator.push(
+                    context,
                     MaterialPageRoute(
                         builder: (context) => const MilestonePage()),
                   );
