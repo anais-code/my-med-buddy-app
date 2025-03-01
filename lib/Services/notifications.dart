@@ -40,6 +40,7 @@ class Notifications {
 
     //init plugin
     await flutterLocalNotificationsPlugin.initialize(initSettings);
+    _isInitialized = true;
   }
 
   //notif setup
@@ -67,7 +68,8 @@ class Notifications {
       id,
       title,
       body,
-      const NotificationDetails(),
+      NotificationDetails(),
+      //const NotificationDetails(),
     );
   }
 
@@ -85,6 +87,10 @@ class Notifications {
     //create date time for today at specified time
     var scheduledDate =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
 
     //schedule notif
     await flutterLocalNotificationsPlugin.zonedSchedule(
