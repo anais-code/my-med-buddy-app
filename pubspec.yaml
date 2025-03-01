@@ -73,6 +73,10 @@ flutter:
   - assets/images/mmb_health_icon.png
   - assets/images/mmb_progress_icon.png
   - assets/images/mmb_streak_icon.png
+  - assets/images/mmb_doc_icon.png
+  - assets/images/mmb_pill_icon.png
+  - assets/images/mmb_calendar_icon.png
+  - assets/images/mmb_vitals_icon.png
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

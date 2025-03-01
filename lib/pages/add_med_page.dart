@@ -125,7 +125,7 @@ class _AddMedPageState extends State<AddMedPage> {
             id: i,
             title: 'Medication Reminder',
             body:
-                'Take ${_medicationNameController.text} ($medDosages[i] ${medUnits ?? ''})',
+                'Take ${_medicationNameController.text}: ${medDosages[i].toString()} ${medUnits ?? ''}',
             hour: time.hour,
             minute: time.minute,
           );

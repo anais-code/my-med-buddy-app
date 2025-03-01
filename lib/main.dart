@@ -6,9 +6,11 @@ import 'package:my_med_buddy_app/Services/notifications.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  //init notifications
-  Notifications().initNotification();
   await Firebase.initializeApp();
+
+  //init notifications
+  Notifications notifications = Notifications();
+  notifications.initNotification();
   runApp(const MyApp());
 }
 

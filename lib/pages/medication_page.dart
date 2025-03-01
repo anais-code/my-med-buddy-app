@@ -303,6 +303,69 @@ class _MedicationPageState extends State<MedicationPage> {
               ),
             ),
           ),
+
+          //display all user medications
+          Expanded(
+            child: StreamBuilder(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(_auth.currentUser!.uid)
+                    .collection('medications')
+                    .snapshots(),
+                builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(child: Text('No medications found'));
+                  }
+
+                  final medications = snapshot.data!.docs;
+                  return ListView.builder(
+                    itemCount: medications.length,
+                    itemBuilder: (context, index) {
+                      final med = medications[index];
+                      return Card(
+                        margin:
+                            EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        child: ListTile(
+                          tileColor: Color(0xFFFFE3E3),
+                          leading: SizedBox(
+                            height: 85,
+                            width: 55,
+                            child: Image.asset(
+                              'assets/images/mmb_pill_icon.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          title: Text(
+                            med['medicationName'],
+                            style: TextStyle(
+                              color: Color(0xFFFF6565),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Schedule: ${med['medFrequency']} times daily',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.black,
+                            size: 20,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }),
+          )
         ],
       ),
 
