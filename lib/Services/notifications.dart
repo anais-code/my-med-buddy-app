@@ -13,6 +13,7 @@ class Notifications {
 
   //init notifications
   Future<void> initNotification() async {
+    try{
     //prevents multiple initializations
     if (_isInitialized) return;
 
@@ -41,7 +42,11 @@ class Notifications {
     //init plugin
     await flutterLocalNotificationsPlugin.initialize(initSettings);
     _isInitialized = true;
+  } catch (e) {
+      print('Error initializing notifications: $e');
+    }
   }
+
 
   //notif setup
   NotificationDetails notificationDetails() {
@@ -110,7 +115,7 @@ class Notifications {
   }
 
   //cancel notif
-  Future<void> cancelAllNotifications() async {
+  Future<void> cancelNotifications(int id) async {
     await flutterLocalNotificationsPlugin.cancelAll();
   }
 }

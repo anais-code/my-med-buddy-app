@@ -72,6 +72,38 @@ class _MedicationPageState extends State<MedicationPage> {
     }
   }
 
+  //Method to edit user created medication schedules
+  void _navigateToEditMedicationPage(BuildContext context, QueryDocumentSnapshot med) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddMedPage(
+          medicationData: med.data() as Map<String, dynamic>, // Pass the medication data to the edit page
+          medicationId: med.id, // Pass the document ID for updating
+        ),
+      ),
+    );
+  }
+
+  //Method to delete user created medication schedules
+  void _deleteMedication(String medicationId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_auth.currentUser!.uid)
+          .collection('medications')
+          .doc(medicationId)
+          .delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Medication deleted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete medication: $e')),
+      );
+    }
+  }
+
   //method to use sign out from authentication.dart
   void _signOut() async {
     await _authService.signOut();
@@ -355,17 +387,39 @@ class _MedicationPageState extends State<MedicationPage> {
                               fontSize: 16,
                             ),
                           ),
-                          trailing: Icon(
-                            Icons.arrow_forward_ios,
+                          trailing: PopupMenuButton<String>(
+                            icon: Icon(
+                            Icons.more_vert, // Use a vertical dots icon for the menu
                             color: Colors.black,
                             size: 20,
+                          ),
+                          onSelected:(value) {
+                              if (value == 'edit'){
+                      // Navigate to the edit page
+                        _navigateToEditMedicationPage(context, med);
+                          }else if (value == 'delete') {
+                        // Delete the medication
+                        _deleteMedication(med.id);
+                        }
+                      },
+                            itemBuilder: (BuildContext context) => [
+                            PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Text('Edit'),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Text('Delete'),
+                          ),
+                            ],
                           ),
                         ),
                       );
                     },
                   );
-                }),
-          )
+                },
+            ),
+          ),
         ],
       ),
 
