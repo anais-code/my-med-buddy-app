@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_med_buddy_app/Services/authentication.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../Services/notifications.dart';
 import 'milestone_page.dart';
 import 'signup_login.dart';
 import 'medication_page.dart';

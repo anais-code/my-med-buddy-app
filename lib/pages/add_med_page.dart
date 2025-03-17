@@ -3,10 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_med_buddy_app/widgets/section_divider.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:my_med_buddy_app/Services/notifications.dart';
+import 'package:intl/intl.dart';
 
 class AddMedPage extends StatefulWidget {
-  const AddMedPage({super.key});
+  final Map<String, dynamic>? medicationData; // Added this parameter
+  final String? medicationId; // Added this parameter
+
+  const AddMedPage({super.key, this.medicationData, this.medicationId});
+
   @override
   State<AddMedPage> createState() => _AddMedPageState();
 }
@@ -60,8 +66,60 @@ class _AddMedPageState extends State<AddMedPage> {
   bool _isMedReminderEnabled = false;
   bool _isThresholdReminderEnabled = false;
 
+  //helper method to change convert time strings into objects
+  TimeOfDay? _parseTimeString(String timeString) {
+    try {
+      final timeFormat = DateFormat.jm(); // Use the 'jm' format for parsing "2:35 PM"
+      final dateTime = timeFormat.parse(timeString);
+      return TimeOfDay.fromDateTime(dateTime);
+    } catch (e) {
+      debugPrint('Failed to parse time string: $e');
+      return null;
+    }
+  }
+
   @override
-  //dispose of controllers to help with in app memory managment
+  void initState() {
+    super.initState();
+
+    // Pre-fill the form fields if medicationData is provided
+    if (widget.medicationData != null) {
+      _medicationNameController.text = widget.medicationData!['medicationName'];
+      _currentInventoryController.text = widget.medicationData!['currentInventory'].toString();
+      _inventoryThresholdController.text = widget.medicationData!['inventoryThreshold'].toString();
+      medUnits = widget.medicationData!['medUnits'];
+      medFrequency = widget.medicationData!['medFrequency'];
+      _isMedReminderEnabled = widget.medicationData!['isMedReminderEnabled'];
+      _isThresholdReminderEnabled = widget.medicationData!['isThresholdReminderEnabled'];
+      _notesController.text = widget.medicationData!['notes'];
+
+      // Pre-fill medTimes and medDosages if available
+      if (widget.medicationData!['medTimes'] != null) {
+        medTimes = (widget.medicationData!['medTimes'] as List)
+            .map((time) => time != null ? _parseTimeString(time) : null)
+            .toList();
+      }
+      if (widget.medicationData!['medDosages'] != null) {
+        medDosages = List<int>.from(widget.medicationData!['medDosages']);
+      }
+    }
+  }
+
+  Future<void> _requestNotificationPermissions() async {
+    final status = await Permission.notification.status;
+    if (!status.isGranted) {
+      await Permission.notification.request();
+    }
+    if (!status.isGranted) {
+      debugPrint('Notification permissions not granted');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Notification permissions are required for reminders.')),
+      );
+    }
+  }
+
+  @override
+  //dispose of controllers to help with in app memory management
   void dispose() {
     _searchBarController.dispose();
     _medicationNameController.dispose();
@@ -82,59 +140,105 @@ class _AddMedPageState extends State<AddMedPage> {
   //method to save medication to firestore collection, linked to uid
   //NEEDS TRY CATCH IMPLEMENTATION
   void _saveMedication() async {
-    //get current user
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       print('User not logged in');
       return;
     }
 
-    //map for med info
-    Map<String, dynamic> medData = {
-      'medicationName': _medicationNameController.text,
-      'medUnits': medUnits,
-      'medFrequency': medFrequency,
-      'medTimes': medTimes.map((time) {
-        return time?.format(context);
-      }).toList(),
-      'medDosages': medDosages,
-      'isMedReminderEnabled': _isMedReminderEnabled,
-      'currentInventory': int.tryParse(_currentInventoryController.text) ?? 0,
-      'inventoryThreshold':
-          int.tryParse(_inventoryThresholdController.text) ?? 0,
-      'isThresholdReminderEnabled': _isThresholdReminderEnabled,
-      'notes': _notesController.text,
-    };
+    // Validate medFrequency and medTimes
+    if (medFrequency != medTimes.length) {
+      debugPrint('medFrequency and medTimes length mismatch');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please fill in all medication times.')),
+      );
+      return;
+    }
 
-    //save map to firestore under medications collection -- assoc with user doc
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('medications')
-        .add(medData);
 
-    //if user chooses to enable reminders, schedule notifs based on times
-    if (_isMedReminderEnabled) {
-      //each notif linked to chosen time/s
-      for (int i = 0; i < medFrequency; i++) {
-        if (medTimes[i] != null) {
-          TimeOfDay time = medTimes[i]!;
-          //call method from notif service class to schedule notif
-          await Notifications().scheduleNotification(
-            //display med name, dosage and units
-            id: i,
-            title: 'Medication Reminder',
-            body:
-                'Take ${_medicationNameController.text}: ${medDosages[i].toString()} ${medUnits ?? ''}',
-            hour: time.hour,
-            minute: time.minute,
-          );
+    try {
+      // Save medication data to Firestore
+      Map<String, dynamic> medData = {
+        'medicationName': _medicationNameController.text,
+        'medUnits': medUnits,
+        'medFrequency': medFrequency,
+        'medTimes': medTimes.map((time) => time?.format(context)).toList(),
+        'medDosages': medDosages,
+        'isMedReminderEnabled': _isMedReminderEnabled,
+        'currentInventory': int.tryParse(_currentInventoryController.text) ?? 0,
+        'inventoryThreshold': int.tryParse(_inventoryThresholdController.text) ?? 0,
+        'isThresholdReminderEnabled': _isThresholdReminderEnabled,
+        'notes': _notesController.text,
+      };
+    if (widget.medicationId ==null) {
+      // Add new medication
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('medications')
+          .add(medData);
+    }else {
+    // Update existing medication
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('medications')
+          .doc(widget.medicationId)
+          .update(medData);
+    }
+
+      // Cancel existing notifications if reminders are disabled
+      if (!_isMedReminderEnabled) {
+        for (int i = 0; i < medFrequency; i++) {
+          try {
+            await Notifications().cancelNotifications(i);
+          } catch (e) {
+            debugPrint('Failed to cancel notification: $e');
+          }
         }
       }
+
+      // Schedule notifications if enabled
+      if (_isMedReminderEnabled) {
+        await _requestNotificationPermissions(); // Request permissions
+
+        if (await Permission.notification.status.isGranted) {
+          for (int i = 0; i < medFrequency; i++) {
+            if (medTimes[i] != null) {
+              TimeOfDay time = medTimes[i]!;
+              try {
+                await Notifications().scheduleNotification(
+                  id: i,
+                  title: 'Medication Reminder',
+                  body:
+                  'Take ${_medicationNameController.text}: ${medDosages[i]
+                      .toString()} ${medUnits ?? ''}',
+                  hour: time.hour,
+                  minute: time.minute,
+                );
+              } catch (e) {
+                debugPrint('Failed to schedule notification: $e');
+              }
+            }
+          }
+        }
+      }
+
+      // Check if the widget is still mounted before using context
+      if (!mounted) return;
+      // Navigate back on success
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint('Failed to save medication: $e');
+
+      // Check if the widget is still mounted before using context
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save medication: $e')),
+      );
     }
-    //naviagte to previous page on successful save
-    Navigator.pop(context);
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +250,7 @@ class _AddMedPageState extends State<AddMedPage> {
         elevation: 0,
         centerTitle: false,
         title: Text(
-          'Add Medication',
+          widget.medicationData == null ? 'Add Medication': 'Edit Medication', //Update title
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
