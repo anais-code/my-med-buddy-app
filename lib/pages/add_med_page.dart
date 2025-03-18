@@ -112,6 +112,7 @@ class _AddMedPageState extends State<AddMedPage> {
     }
     if (!status.isGranted) {
       debugPrint('Notification permissions not granted');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Notification permissions are required for reminders.')),
       );
@@ -651,7 +652,7 @@ class _AddMedPageState extends State<AddMedPage> {
               ),
 
               SizedBox(height: 20),
-              //enable reminders toggle -- NOT YET IMPLEMENTED
+              //enable reminders toggle
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 3.0),
                 child: SwitchListTile(
