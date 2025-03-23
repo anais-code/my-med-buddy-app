@@ -94,6 +94,7 @@ class _MedicationPageState extends State<MedicationPage> {
           .collection('medications')
           .doc(medicationId)
           .delete();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Medication deleted successfully')),
       );
@@ -359,6 +360,13 @@ class _MedicationPageState extends State<MedicationPage> {
                     itemCount: medications.length,
                     itemBuilder: (context, index) {
                       final med = medications[index];
+                      final data = med.data() as Map<String, dynamic>;
+
+                      // Handle missing fields gracefully
+                      final medFrequency = data['medFrequency'] ?? 1; // Default to 1 if missing
+                      final medTimes = data['medTimes'];
+
+
                       return Card(
                         margin:
                             EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -381,7 +389,7 @@ class _MedicationPageState extends State<MedicationPage> {
                             ),
                           ),
                           subtitle: Text(
-                            'Schedule: ${med['medFrequency']} times daily',
+                            'Schedule: $medFrequency times daily',
                             style: TextStyle(
                               color: Colors.black,
                               fontSize: 16,

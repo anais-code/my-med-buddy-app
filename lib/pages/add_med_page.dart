@@ -112,6 +112,7 @@ class _AddMedPageState extends State<AddMedPage> {
     }
     if (!status.isGranted) {
       debugPrint('Notification permissions not granted');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Notification permissions are required for reminders.')),
       );
@@ -170,7 +171,7 @@ class _AddMedPageState extends State<AddMedPage> {
         'isThresholdReminderEnabled': _isThresholdReminderEnabled,
         'notes': _notesController.text,
       };
-    if (widget.medicationId ==null) {
+    if (widget.medicationId == null) {
       // Add new medication
       await FirebaseFirestore.instance
           .collection('users')
@@ -651,7 +652,7 @@ class _AddMedPageState extends State<AddMedPage> {
               ),
 
               SizedBox(height: 20),
-              //enable reminders toggle -- NOT YET IMPLEMENTED
+              //enable reminders toggle
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 3.0),
                 child: SwitchListTile(

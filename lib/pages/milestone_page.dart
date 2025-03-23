@@ -7,8 +7,6 @@ import 'medication_page.dart';
 import 'schedule_page.dart';
 import 'health_data_page.dart';
 
-
-
 class MilestonePage extends StatefulWidget {
   const MilestonePage({super.key});
   @override
@@ -16,19 +14,20 @@ class MilestonePage extends StatefulWidget {
 }
 
 class _MilestonePageState extends State<MilestonePage> {
-
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Map<String, dynamic>? _userData;
   bool _isLoading = true; // Track loading state
+  bool _hasFirstLog = false; // Track if the user has made their first log
 
-  //declare obj of auth services class
+  // Declare obj of auth services class
   final AuthServices _authService = AuthServices();
 
   @override
   void initState() {
     super.initState();
     _fetchUserData();
+    _checkFirstLog();
   }
 
   // Fetch user data from Firestore
@@ -64,45 +63,139 @@ class _MilestonePageState extends State<MilestonePage> {
     }
   }
 
-  //method to use sign out from authentication.dart
+  // Check if the user has made their first log
+  Future<void> _checkFirstLog() async {
+    final User? user = _auth.currentUser;
+    if (user != null) {
+      final logsSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('medicationLogs')
+          .get();
+
+      setState(() {
+        _hasFirstLog = logsSnapshot.docs.isNotEmpty;
+      });
+    }
+  }
+
+  // Method to use sign out from authentication.dart
   void _signOut() async {
     await _authService.signOut();
     if (!mounted) return;
-    //navigates back to signup_login screen
+    // Navigates back to signup_login screen
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => SignupLoginPage()),
     );
   }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFE3E3),
-      // Light background color
-      appBar: AppBar(
-        title: Row(
+
+  // Streak counter widget
+  Widget _buildStreakCounter() {
+    final User? user = _auth.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _firestore.collection('users').doc(user.uid).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Text('No streak data found');
+        }
+
+        final userData = snapshot.data!.data() as Map<String, dynamic>;
+        final streak = userData['streak'] ?? 0;
+
+        return Row(
           children: [
-            // Streak Counter with Flame Icon
+            // Streak Icon
             Image.asset(
               'assets/images/mmb_streak_icon.png',
               height: 70,
               width: 60,
             ),
             const SizedBox(width: 8),
-            const Text(
-              "3", // Replace with dynamic streak count
-              style: TextStyle(
+            // Streak Counter
+            Text(
+              "$streak", // Dynamic streak count
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  // Achievement card widget
+  Widget _buildAchievementCard({
+    required String title,
+    required String description,
+    required String iconPath,
+    required bool isUnlocked,
+  }) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Opacity(
+        opacity: isUnlocked ? 1.0 : 0.5, // Grey out if not unlocked
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icon and Title
+              Row(
+                children: [
+                  Image.asset(
+                    iconPath,
+                    height: 120,
+                    width: 120,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.bold,
+                      color: isUnlocked ? Colors.black : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Description
+              Padding(
+                padding: const EdgeInsets.only(left: 38),
+                child: Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: isUnlocked ? Colors.grey : Colors.grey[400],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFE3E3), // Light background color
+      appBar: AppBar(
+        title: _buildStreakCounter(), // Use the streak counter widget
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        automaticallyImplyLeading: false,
-        // Disable default leading icon (hamburger menu)
+        automaticallyImplyLeading: false, // Disable default leading icon (hamburger menu)
         actions: [
           // Hamburger Menu Icon
           Builder(
@@ -119,7 +212,6 @@ class _MilestonePageState extends State<MilestonePage> {
           ),
         ],
       ),
-
 
       // Sidebar (Drawer)
       endDrawer: Drawer(
@@ -138,40 +230,39 @@ class _MilestonePageState extends State<MilestonePage> {
                     const Center(
                       child: CircularProgressIndicator(color: Colors.white),
                     )
-                  else
-                    if (_userData != null) ...[
-                      Text(
-                        '${_userData!['firstName']} ${_userData!['lastName']}',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  else if (_userData != null) ...[
+                    Text(
+                      '${_userData!['firstName']} ${_userData!['lastName']}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Age: ${_userData!['age'] ?? 'N/A'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Age: ${_userData!['age'] ?? 'N/A'}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Conditions: ${_userData!['conditions'] ?? 'N/A'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Conditions: ${_userData!['conditions'] ?? 'N/A'}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
-                    ] else
-                      const Text(
-                        'No user data found',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                    ),
+                  ] else
+                    const Text(
+                      'No user data found',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
+                    ),
                 ],
               ),
             ),
@@ -206,8 +297,7 @@ class _MilestonePageState extends State<MilestonePage> {
                 // Navigate to Notifications Page
                 Navigator.pop(context); // Close the drawer
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Navigating to Notifications Page')),
+                  const SnackBar(content: Text('Navigating to Notifications Page')),
                 );
               },
             ),
@@ -232,27 +322,74 @@ class _MilestonePageState extends State<MilestonePage> {
         ),
       ),
 
-
-      //Body
-      body: Column(
-        children: [
-          // Centered title
-          Container(
-            height: 100, // Adjust height as needed
-            alignment: Alignment.center, // Center the text
-            child: const Text(
-              "Milestone page",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+      // Body
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Centered title
+            Container(
+              height: 100, // Adjust height as needed
+              alignment: Alignment.center, // Center the text
+              child: const Text(
+                "Milestones",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
             ),
-          ),
 
-        ],
+            // Section Divider
+            const Divider(
+              thickness: 1,
+              color: Colors.grey,
+              indent: 20,
+              endIndent: 20,
+            ),
+
+            // First Log Achievement
+            _buildAchievementCard(
+              title: "First dose success",
+              description: "Logged your first dose—great start to your health journey.",
+              iconPath: 'assets/images/mmb_mascot.png',
+              isUnlocked: _hasFirstLog, // Unlock if the user has made their first log
+            ),
+
+            // Section Divider
+            const Divider(
+              thickness: 1,
+              color: Colors.grey,
+              indent: 20,
+              endIndent: 20,
+            ),
+
+            // Fifty Streak Achievement
+            _buildAchievementCard(
+              title: "Gain 50 streak points",
+              description: "Achieved fifty streak points. Well done!",
+              iconPath: 'assets/images/mmb_smiling.png',
+              isUnlocked: false, // Locked by default
+            ),
+
+            // Section Divider
+            const Divider(
+              thickness: 1,
+              color: Colors.grey,
+              indent: 20,
+              endIndent: 20,
+            ),
+
+            // One Year Adherence Achievement
+            _buildAchievementCard(
+              title: "Year of Wellness",
+              description: "Achieved a full year of adherence and tracking",
+              iconPath: 'assets/images/mmb_calendar_icon.png',
+              isUnlocked: false, // Locked by default
+            ),
+          ],
+        ),
       ),
-
 
       // Bottom Snack Bar with Four Elements
       bottomNavigationBar: BottomAppBar(
@@ -269,40 +406,34 @@ class _MilestonePageState extends State<MilestonePage> {
                   width: 38,
                 ),
                 onPressed: () {
-                  //Navigate to Schedule page
                   Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (context) => const SchedulePage()),
+                    MaterialPageRoute(builder: (context) => const SchedulePage()),
                   );
                 },
               ),
 
-              //mediation page icon
+              // Medication page icon
               IconButton(
                 icon: Image.asset('assets/images/mmb_medication_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
-                  //Navigate to medication page
                   Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (context) => const MedicationPage()),
+                    MaterialPageRoute(builder: (context) => const MedicationPage()),
                   );
                 },
               ),
 
-              //health data icon
+              // Health data icon
               IconButton(
                 icon: Image.asset('assets/images/mmb_health_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
-                  //Navigate to health data page
                   Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (context) => const HealthDataPage()),
+                    MaterialPageRoute(builder: (context) => const HealthDataPage()),
                   );
                 },
               ),
@@ -314,10 +445,8 @@ class _MilestonePageState extends State<MilestonePage> {
                   width: 38,
                 ),
                 onPressed: () {
-                  //Navigate to milestone page
                   Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (context) => const MilestonePage()),
+                    MaterialPageRoute(builder: (context) => const MilestonePage()),
                   );
                 },
               ),
@@ -327,5 +456,4 @@ class _MilestonePageState extends State<MilestonePage> {
       ),
     );
   }
-
 }
