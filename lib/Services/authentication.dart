@@ -38,6 +38,7 @@ class AuthServices {
           'gender': null,
           'height': null,
           'weight': null,
+          'streak': 0,
         });
 
         result = "success";

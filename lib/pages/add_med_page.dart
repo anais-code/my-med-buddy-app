@@ -171,7 +171,7 @@ class _AddMedPageState extends State<AddMedPage> {
         'isThresholdReminderEnabled': _isThresholdReminderEnabled,
         'notes': _notesController.text,
       };
-    if (widget.medicationId ==null) {
+    if (widget.medicationId == null) {
       // Add new medication
       await FirebaseFirestore.instance
           .collection('users')
