@@ -73,12 +73,14 @@ class _MedicationPageState extends State<MedicationPage> {
   }
 
   //Method to edit user created medication schedules
-  void _navigateToEditMedicationPage(BuildContext context, QueryDocumentSnapshot med) {
+  void _navigateToEditMedicationPage(
+      BuildContext context, QueryDocumentSnapshot med) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => AddMedPage(
-          medicationData: med.data() as Map<String, dynamic>, // Pass the medication data to the edit page
+          medicationData: med.data() as Map<String,
+              dynamic>, // Pass the medication data to the edit page
           medicationId: med.id, // Pass the document ID for updating
         ),
       ),
@@ -124,16 +126,11 @@ class _MedicationPageState extends State<MedicationPage> {
         title: Row(
           children: [
             // Streak Counter with Flame Icon
-            Image.asset(
-              'assets/images/mmb_streak_icon.png',
-              height: 70,
-              width: 60,
-            ),
-            const SizedBox(width: 8),
+
             const Text(
-              "3", // Replace with dynamic streak count
+              "Current Medications", // Replace with dynamic streak count
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 25,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
@@ -275,7 +272,7 @@ class _MedicationPageState extends State<MedicationPage> {
       //Body
       body: Column(
         children: [
-          SectionDivider(),
+          //SectionDivider(),
           //sign up button
           Padding(
             padding:
@@ -319,10 +316,11 @@ class _MedicationPageState extends State<MedicationPage> {
             ),
           ),
 
+          SizedBox(height: 10),
           SectionDivider(),
-          SizedBox(height: 8),
+          SizedBox(height: 10),
 
-          Align(
+          /*Align(
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: EdgeInsets.only(left: 16),
@@ -335,97 +333,97 @@ class _MedicationPageState extends State<MedicationPage> {
                 ),
               ),
             ),
-          ),
+          ),*/
 
           //display all user medications
           Expanded(
             child: StreamBuilder(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(_auth.currentUser!.uid)
-                    .collection('medications')
-                    .snapshots(),
-                builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return Center(child: Text('No medications found'));
-                  }
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(_auth.currentUser!.uid)
+                  .collection('medications')
+                  .snapshots(),
+              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(child: Text('No medications found'));
+                }
 
-                  final medications = snapshot.data!.docs;
-                  return ListView.builder(
-                    itemCount: medications.length,
-                    itemBuilder: (context, index) {
-                      final med = medications[index];
-                      final data = med.data() as Map<String, dynamic>;
+                final medications = snapshot.data!.docs;
+                return ListView.builder(
+                  itemCount: medications.length,
+                  itemBuilder: (context, index) {
+                    final med = medications[index];
+                    final data = med.data() as Map<String, dynamic>;
 
-                      // Handle missing fields gracefully
-                      final medFrequency = data['medFrequency'] ?? 1; // Default to 1 if missing
-                      final medTimes = data['medTimes'];
+                    // Handle missing fields gracefully
+                    final medFrequency =
+                        data['medFrequency'] ?? 1; // Default to 1 if missing
+                    final medTimes = data['medTimes'];
 
-
-                      return Card(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                        child: ListTile(
-                          tileColor: Color(0xFFFFE3E3),
-                          leading: SizedBox(
-                            height: 85,
-                            width: 55,
-                            child: Image.asset(
-                              'assets/images/mmb_pill_icon.png',
-                              fit: BoxFit.contain,
-                            ),
+                    return Card(
+                      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      child: ListTile(
+                        tileColor: Color(0xFFFFE3E3),
+                        leading: SizedBox(
+                          height: 85,
+                          width: 55,
+                          child: Image.asset(
+                            'assets/images/mmb_pill_icon.png',
+                            fit: BoxFit.contain,
                           ),
-                          title: Text(
-                            med['medicationName'],
-                            style: TextStyle(
-                              color: Color(0xFFFF6565),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20,
-                            ),
+                        ),
+                        title: Text(
+                          med['medicationName'],
+                          style: TextStyle(
+                            color: Color(0xFFFF6565),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
                           ),
-                          subtitle: Text(
-                            'Schedule: $medFrequency times daily',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 16,
-                            ),
+                        ),
+                        subtitle: Text(
+                          'Schedule: $medFrequency times daily',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
                           ),
-                          trailing: PopupMenuButton<String>(
-                            icon: Icon(
-                            Icons.more_vert, // Use a vertical dots icon for the menu
+                        ),
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons
+                                .more_vert, // Use a vertical dots icon for the menu
                             color: Colors.black,
                             size: 20,
                           ),
-                          onSelected:(value) {
-                              if (value == 'edit'){
-                      // Navigate to the edit page
-                        _navigateToEditMedicationPage(context, med);
-                          }else if (value == 'delete') {
-                        // Delete the medication
-                        _deleteMedication(med.id);
-                        }
-                      },
-                            itemBuilder: (BuildContext context) => [
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              // Navigate to the edit page
+                              _navigateToEditMedicationPage(context, med);
+                            } else if (value == 'delete') {
+                              // Delete the medication
+                              _deleteMedication(med.id);
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => [
                             PopupMenuItem<String>(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
-                            ],
-                          ),
+                              value: 'edit',
+                              child: Text('Edit'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  );
-                },
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],

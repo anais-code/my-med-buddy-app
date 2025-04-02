@@ -36,6 +36,7 @@ class _SchedulePageState extends State<SchedulePage> {
   void initState() {
     super.initState();
     _fetchUserData();
+    //_updateStreak();
   }
 
   // Fetch user data from Firestore
@@ -44,7 +45,7 @@ class _SchedulePageState extends State<SchedulePage> {
       final User? user = _auth.currentUser;
       if (user != null) {
         final DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(user.uid).get();
+            await _firestore.collection('users').doc(user.uid).get();
 
         if (userDoc.exists) {
           setState(() {
@@ -106,78 +107,80 @@ class _SchedulePageState extends State<SchedulePage> {
   }
 
   // Log medication taken
-  Future<void> _logMedicationTaken(String medicationId,medicationName) async {
+  Future<void> _logMedicationTaken(String medicationId, medicationName) async {
     final User? user = _auth.currentUser;
     if (user == null) return;
 
-  try{
-    // Fetch the medication document
-    final medDoc = await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('medications')
-        .doc(medicationId)
-        .get();
-
-    if (!medDoc.exists) {
-      debugPrint('Medication document does not exist');
-      return;
-    }
-
-    final medData = medDoc.data() as Map<String, dynamic>;
-    final currentInventory = medData['currentInventory'] as int;
-    final inventoryThreshold = medData['inventoryThreshold'] as int;
-
-    // Check if current inventory is above the threshold
-    if (currentInventory > 0) {
-      // Decrement the current inventory
-      await _firestore
+    try {
+      // Fetch the medication document
+      final medDoc = await _firestore
           .collection('users')
           .doc(user.uid)
           .collection('medications')
           .doc(medicationId)
-          .update({
-        'currentInventory': FieldValue.increment(-1),
-      });
+          .get();
 
-      await _firestore
-        .collection('users') // Access the users collection
-        .doc(user.uid) // Access the specific user's document
-        .collection('medicationLogs') // Access the medicationLogs subcollection
-        .add({
-      'medicationId': medicationId,
-      'medicationName': medicationName,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    // Update the streak counter
-    await _updateStreak();
-    // Refresh the UI to reflect the change
-      setState(() {});
-
-      // Show a motivational popup
-      if (!mounted) return;
-      AppUtils.showMotivationalPopup(context); // Use the function from app_utils.dart
-
-      // Check if inventory has reached the threshold
-      if (currentInventory - 1 <= inventoryThreshold) {
-        // Trigger a notification or alert for low inventory
-        debugPrint('Inventory threshold reached for $medicationName');
-
-        //Trigger a notification for low inventory
-        await Notifications().scheduleNotification(
-          id: DateTime.now().millisecondsSinceEpoch % 100000, // Unique ID
-          title: 'Low Inventory Alert',
-          body: 'Your inventory for $medicationName is running low!',
-          hour: DateTime.now().hour,
-          minute: DateTime.now().minute + 1, // Schedule for 1 minute later
-        );
+      if (!medDoc.exists) {
+        debugPrint('Medication document does not exist');
+        return;
       }
-    } else {
-      debugPrint('Inventory is already at or below the threshold');
-    }
+
+      final medData = medDoc.data() as Map<String, dynamic>;
+      final currentInventory = medData['currentInventory'] as int;
+      final inventoryThreshold = medData['inventoryThreshold'] as int;
+
+      // Check if current inventory is above the threshold
+      if (currentInventory > 0) {
+        // Decrement the current inventory
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('medications')
+            .doc(medicationId)
+            .update({
+          'currentInventory': FieldValue.increment(-1),
+        });
+
+        await _firestore
+            .collection('users') // Access the users collection
+            .doc(user.uid) // Access the specific user's document
+            .collection(
+                'medicationLogs') // Access the medicationLogs subcollection
+            .add({
+          'medicationId': medicationId,
+          'medicationName': medicationName,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        // Update the streak counter
+        await _updateStreak();
+        // Refresh the UI to reflect the change
+        setState(() {});
+
+        // Show a motivational popup
+        if (!mounted) return;
+        AppUtils.showMotivationalPopup(
+            context); // Use the function from app_utils.dart
+
+        // Check if inventory has reached the threshold
+        if (currentInventory - 1 <= inventoryThreshold) {
+          // Trigger a notification or alert for low inventory
+          debugPrint('Inventory threshold reached for $medicationName');
+
+          //Trigger a notification for low inventory
+          await Notifications().scheduleNotification(
+            id: DateTime.now().millisecondsSinceEpoch % 100000, // Unique ID
+            title: 'Low Inventory Alert',
+            body: 'Your inventory for $medicationName is running low!',
+            hour: DateTime.now().hour,
+            minute: DateTime.now().minute + 1, // Schedule for 1 minute later
+          );
+        }
+      } else {
+        debugPrint('Inventory is already at or below the threshold');
+      }
     } catch (e) {
-    debugPrint('Failed to log medication: $e');
+      debugPrint('Failed to log medication: $e');
     }
   }
 
@@ -212,13 +215,15 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchMedicationData(List<QueryDocumentSnapshot> medications) async {
+  Future<List<Map<String, dynamic>>> _fetchMedicationData(
+      List<QueryDocumentSnapshot> medications) async {
     final List<Map<String, dynamic>> medicationData = [];
 
     for (final med in medications) {
       final data = med.data() as Map<String, dynamic>;
       final medicationId = med.id; // Access the document ID
-      debugPrint('Processing medication: ${data['medicationName']}, ID: $medicationId');
+      debugPrint(
+          'Processing medication: ${data['medicationName']}, ID: $medicationId');
 
       // Check if the medication has been taken today
       final isTaken = await _isMedicationTakenToday(medicationId);
@@ -232,23 +237,29 @@ class _SchedulePageState extends State<SchedulePage> {
       final now = DateTime.now();
 
       // Parse each time string into a DateTime object
-      final parsedTimes = medTimes.map((timeString) {
-        if (timeString is String) {
-          try {
-            final cleanedTimeString = _cleanTimeString(timeString);
-            debugPrint('Original: $timeString, Cleaned: $cleanedTimeString');
-            final medTime = DateFormat('h:mm a').parse(cleanedTimeString);
-            debugPrint('Parsed: $medTime');
-            return DateTime(now.year, now.month, now.day, medTime.hour, medTime.minute);
-          } catch (e) {
-            debugPrint('Failed to parse time string: $timeString, Error: $e');
-            return null;
-          }
-        } else {
-          debugPrint('Invalid time string: $timeString');
-          return null;
-        }
-      }).whereType<DateTime>().toList();
+      final parsedTimes = medTimes
+          .map((timeString) {
+            if (timeString is String) {
+              try {
+                final cleanedTimeString = _cleanTimeString(timeString);
+                debugPrint(
+                    'Original: $timeString, Cleaned: $cleanedTimeString');
+                final medTime = DateFormat('h:mm a').parse(cleanedTimeString);
+                debugPrint('Parsed: $medTime');
+                return DateTime(
+                    now.year, now.month, now.day, medTime.hour, medTime.minute);
+              } catch (e) {
+                debugPrint(
+                    'Failed to parse time string: $timeString, Error: $e');
+                return null;
+              }
+            } else {
+              debugPrint('Invalid time string: $timeString');
+              return null;
+            }
+          })
+          .whereType<DateTime>()
+          .toList();
 
       debugPrint('parsedTimes: $parsedTimes');
 
@@ -257,7 +268,8 @@ class _SchedulePageState extends State<SchedulePage> {
         ...data, // Include all existing data
         'medicationId': medicationId, // Add the medication ID
         'parsedTimes': parsedTimes, // Add the parsed times
-        'isTaken': isTaken, // Add a flag to indicate if the medication has been taken
+        'isTaken':
+            isTaken, // Add a flag to indicate if the medication has been taken
       });
     }
 
@@ -305,7 +317,6 @@ class _SchedulePageState extends State<SchedulePage> {
     );
   }
 
-
   // Method to use sign out from authentication.dart
   void _signOut() async {
     await _authService.signOut();
@@ -325,7 +336,8 @@ class _SchedulePageState extends State<SchedulePage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        automaticallyImplyLeading: false, // Disable default leading icon (hamburger menu)
+        automaticallyImplyLeading:
+            false, // Disable default leading icon (hamburger menu)
         actions: [
           // Hamburger Menu Icon
           Builder(
@@ -427,7 +439,8 @@ class _SchedulePageState extends State<SchedulePage> {
                 // Navigate to Notifications Page
                 Navigator.pop(context); // Close the drawer
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Navigating to Notifications Page')),
+                  const SnackBar(
+                      content: Text('Navigating to Notifications Page')),
                 );
               },
             ),
@@ -471,72 +484,80 @@ class _SchedulePageState extends State<SchedulePage> {
 
           // Scrollable list of schedule items using StreamBuilder
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _getMedicationsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  debugPrint('Waiting for data...');
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  debugPrint('No medications found in Firestore');
-                  return const Center(child: Text('No medications found'));
-                }
+              child: StreamBuilder<QuerySnapshot>(
+            stream: _getMedicationsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                debugPrint('Waiting for data...');
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                debugPrint('No medications found in Firestore');
+                return const Center(child: Text('No medications found'));
+              }
 
-                final medications = snapshot.data!.docs;
-                debugPrint('Fetched ${medications.length} medications from Firestore');
+              final medications = snapshot.data!.docs;
+              debugPrint(
+                  'Fetched ${medications.length} medications from Firestore');
 
-                // Use a FutureBuilder to fetch and process medication data asynchronously
-                return FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _fetchMedicationData(medications),
-                  builder: (context, futureSnapshot) {
-                    if (futureSnapshot.connectionState == ConnectionState.waiting) {
-                      debugPrint('Processing medication data...');
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (!futureSnapshot.hasData || futureSnapshot.data!.isEmpty) {
-                      debugPrint('No medications to display after processing');
-                      return const Center(child: Text('No medications to display'));
-                    }
+              // Use a FutureBuilder to fetch and process medication data asynchronously
+              return FutureBuilder<List<Map<String, dynamic>>>(
+                future: _fetchMedicationData(medications),
+                builder: (context, futureSnapshot) {
+                  if (futureSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    debugPrint('Processing medication data...');
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!futureSnapshot.hasData || futureSnapshot.data!.isEmpty) {
+                    debugPrint('No medications to display after processing');
+                    return const Center(
+                        child: Text('No medications to display'));
+                  }
 
-                    final medicationData = futureSnapshot.data!;
-                    debugPrint('Processed ${medicationData.length} medications');
+                  final medicationData = futureSnapshot.data!;
+                  debugPrint('Processed ${medicationData.length} medications');
 
-                    // Build the ListView to display the medications
-                    return ListView.builder(
-                      padding: const EdgeInsets.only(left: 16.0, right: 16.0),
-                      itemCount: medicationData.length,
-                      itemBuilder: (context, index) {
-                        final data = medicationData[index];
-                        debugPrint('Displaying medication: ${data['medicationName']}');
+                  // Build the ListView to display the medications
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(left: 16.0, right: 16.0),
+                    itemCount: medicationData.length,
+                    itemBuilder: (context, index) {
+                      final data = medicationData[index];
+                      debugPrint(
+                          'Displaying medication: ${data['medicationName']}');
 
-                        // Only display medications that have not been taken today
-                        if (data['isTaken']) {
-                          return const SizedBox.shrink(); // Hide the medication if it has been taken
-                        }
-                        // Build a Column for each medication
-                        return Column(
-                          children: [
-                            for (final medTime in data['parsedTimes'])
+                      // Only display medications that have not been taken today
+                      if (data['isTaken']) {
+                        return const SizedBox
+                            .shrink(); // Hide the medication if it has been taken
+                      }
+                      // Build a Column for each medication
+                      return Column(
+                        children: [
+                          for (final medTime in data['parsedTimes'])
                             // Build a schedule item for each time
-                              _buildScheduleItem(
-                                time: DateFormat.jm().format(medTime), // Format the time
-                                title: data['medicationName'], // Medication name
-                                subtitle: '${data['medDosages']} ${data['medUnits']}', // Dosage and units
-                                onCheck: () => _logMedicationTaken(data['medicationId'], data['medicationName']), // Log medication
-                                isTaken: data['isTaken'], // Pass the isTaken flag
-                              ),
-                            // Add spacing between medications
-                            const SizedBox(height: 30),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            )
-          ),
+                            _buildScheduleItem(
+                              time: DateFormat.jm()
+                                  .format(medTime), // Format the time
+                              title: data['medicationName'], // Medication name
+                              subtitle:
+                                  '${(data['medDosages'] as List<dynamic>).join()} ${data['medUnits']}', // Dosage and units
+                              onCheck: () => _logMedicationTaken(
+                                  data['medicationId'],
+                                  data['medicationName']), // Log medication
+                              isTaken: data['isTaken'], // Pass the isTaken flag
+                            ),
+                          // Add spacing between medications
+                          const SizedBox(height: 30),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          )),
         ],
       ),
 
@@ -550,56 +571,68 @@ class _SchedulePageState extends State<SchedulePage> {
             children: [
               // Schedule page icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_schedule_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_schedule_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   // Navigate to Schedule page
-                  Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const SchedulePage()),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const SchedulePage()),
                   );
                 },
               ),
 
               // Medication page icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_medication_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_medication_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   // Navigate to medication page
-                  Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const MedicationPage()),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const MedicationPage()),
                   );
                 },
               ),
 
               // Health data icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_health_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_health_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   // Navigate to health data page
-                  Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const HealthDataPage()),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const HealthDataPage()),
                   );
                 },
               ),
 
               // Progress/milestone icon
               IconButton(
-                icon: Image.asset('assets/images/mmb_progress_icon.png',
+                icon: Image.asset(
+                  'assets/images/mmb_progress_icon.png',
                   height: 38,
                   width: 38,
                 ),
                 onPressed: () {
                   // Navigate to milestone page
-                  Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const MilestonePage()),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const MilestonePage()),
                   );
                 },
               ),
@@ -679,7 +712,8 @@ class _SchedulePageState extends State<SchedulePage> {
 
           // Log Medication Button or Checkmark
           if (isTaken)
-            const Icon(Icons.check_circle, color: Colors.green) // Show checkmark if taken
+            const Icon(Icons.check_circle,
+                color: Colors.green) // Show checkmark if taken
           else
             IconButton(
               icon: const Icon(Icons.check, color: Colors.green),

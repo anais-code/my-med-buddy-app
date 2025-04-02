@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:my_med_buddy_app/Services/notifications.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 
 class AddMedPage extends StatefulWidget {
   final Map<String, dynamic>? medicationData; // Added this parameter
@@ -69,13 +72,65 @@ class _AddMedPageState extends State<AddMedPage> {
   //helper method to change convert time strings into objects
   TimeOfDay? _parseTimeString(String timeString) {
     try {
-      final timeFormat = DateFormat.jm(); // Use the 'jm' format for parsing "2:35 PM"
+      final timeFormat =
+          DateFormat.jm(); // Use the 'jm' format for parsing "2:35 PM"
       final dateTime = timeFormat.parse(timeString);
       return TimeOfDay.fromDateTime(dateTime);
     } catch (e) {
       debugPrint('Failed to parse time string: $e');
       return null;
     }
+  }
+
+  //function to fetch medication names using OpenFDA API
+  Future<List<String>> _fetchMedNames(String query) async {
+    debugPrint('Fetching medications for query: $query');
+    if (query.isEmpty) {
+      debugPrint('Query is empty. Returning no suggestions.');
+      return [];
+    }
+
+    // Encode the query to handle special characters
+    final encodedQuery = Uri.encodeComponent(query.trim().toLowerCase());
+
+    // Construct the API URL
+    final url =
+        'https://api.fda.gov/drug/label.json?search=openfda.brand_name:$encodedQuery&limit=50';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+
+        // Extract brand names
+        List<String> suggestions = results
+            .map((item) {
+              final brandNames = item['openfda']?['brand_name']
+                  as List<dynamic>?; // Explicitly cast as List<dynamic>
+              return (brandNames != null && brandNames.isNotEmpty)
+                  ? brandNames.first
+                      as String // Explicitly cast first item as String
+                  : '';
+            })
+            .where((name) => name.isNotEmpty)
+            .toList();
+          
+        // Filter suggestions to only return those starting with the query (case insensitive)
+        suggestions = suggestions.where((name) {
+          return name.toLowerCase().startsWith(query.toLowerCase());
+          }).toList();
+
+        return suggestions;
+      } else {
+        debugPrint('Failed to fetch data: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching data: $e');
+    }
+
+    return [];
   }
 
   @override
@@ -85,12 +140,15 @@ class _AddMedPageState extends State<AddMedPage> {
     // Pre-fill the form fields if medicationData is provided
     if (widget.medicationData != null) {
       _medicationNameController.text = widget.medicationData!['medicationName'];
-      _currentInventoryController.text = widget.medicationData!['currentInventory'].toString();
-      _inventoryThresholdController.text = widget.medicationData!['inventoryThreshold'].toString();
+      _currentInventoryController.text =
+          widget.medicationData!['currentInventory'].toString();
+      _inventoryThresholdController.text =
+          widget.medicationData!['inventoryThreshold'].toString();
       medUnits = widget.medicationData!['medUnits'];
       medFrequency = widget.medicationData!['medFrequency'];
       _isMedReminderEnabled = widget.medicationData!['isMedReminderEnabled'];
-      _isThresholdReminderEnabled = widget.medicationData!['isThresholdReminderEnabled'];
+      _isThresholdReminderEnabled =
+          widget.medicationData!['isThresholdReminderEnabled'];
       _notesController.text = widget.medicationData!['notes'];
 
       // Pre-fill medTimes and medDosages if available
@@ -105,7 +163,7 @@ class _AddMedPageState extends State<AddMedPage> {
     }
   }
 
-  Future<void> _requestNotificationPermissions() async {
+  /*Future<void> _requestNotificationPermissions() async {
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -114,10 +172,12 @@ class _AddMedPageState extends State<AddMedPage> {
       debugPrint('Notification permissions not granted');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Notification permissions are required for reminders.')),
+        SnackBar(
+            content:
+                Text('Notification permissions are required for reminders.')),
       );
     }
-  }
+  }*/
 
   @override
   //dispose of controllers to help with in app memory management
@@ -156,7 +216,6 @@ class _AddMedPageState extends State<AddMedPage> {
       return;
     }
 
-
     try {
       // Save medication data to Firestore
       Map<String, dynamic> medData = {
@@ -167,26 +226,27 @@ class _AddMedPageState extends State<AddMedPage> {
         'medDosages': medDosages,
         'isMedReminderEnabled': _isMedReminderEnabled,
         'currentInventory': int.tryParse(_currentInventoryController.text) ?? 0,
-        'inventoryThreshold': int.tryParse(_inventoryThresholdController.text) ?? 0,
+        'inventoryThreshold':
+            int.tryParse(_inventoryThresholdController.text) ?? 0,
         'isThresholdReminderEnabled': _isThresholdReminderEnabled,
         'notes': _notesController.text,
       };
-    if (widget.medicationId == null) {
-      // Add new medication
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('medications')
-          .add(medData);
-    }else {
-    // Update existing medication
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('medications')
-          .doc(widget.medicationId)
-          .update(medData);
-    }
+      if (widget.medicationId == null) {
+        // Add new medication
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('medications')
+            .add(medData);
+      } else {
+        // Update existing medication
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('medications')
+            .doc(widget.medicationId)
+            .update(medData);
+      }
 
       // Cancel existing notifications if reminders are disabled
       if (!_isMedReminderEnabled) {
@@ -201,9 +261,35 @@ class _AddMedPageState extends State<AddMedPage> {
 
       // Schedule notifications if enabled
       if (_isMedReminderEnabled) {
-        await _requestNotificationPermissions(); // Request permissions
+        //notif working implementation -- no permissions
+
+        for (int i = 0; i < medFrequency; i++) {
+          if (medTimes[i] != null) {
+            TimeOfDay time = medTimes[i]!;
+            //call method from notif service class to schedule notif
+            await Notifications().scheduleNotification(
+              //display med name, dosage and units
+              id: i,
+              title: 'Medication Reminder',
+              body:
+                  'Take ${_medicationNameController.text}: ${medDosages[i].toString()} ${medUnits ?? ''}',
+              hour: time.hour,
+              minute: time.minute,
+            );
+          }
+        }
+
+        //end
+
+        /*await _requestNotificationPermissions(); // Request permissions
 
         if (await Permission.notification.status.isGranted) {
+          await Notifications().showNotification(
+          id: 0,
+          title: 'Test Notification',
+          body: 'This is a test notification',
+        );
+
           for (int i = 0; i < medFrequency; i++) {
             if (medTimes[i] != null) {
               TimeOfDay time = medTimes[i]!;
@@ -222,7 +308,7 @@ class _AddMedPageState extends State<AddMedPage> {
               }
             }
           }
-        }
+        }*/
       }
 
       // Check if the widget is still mounted before using context
@@ -240,7 +326,6 @@ class _AddMedPageState extends State<AddMedPage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -251,7 +336,9 @@ class _AddMedPageState extends State<AddMedPage> {
         elevation: 0,
         centerTitle: false,
         title: Text(
-          widget.medicationData == null ? 'Add Medication': 'Edit Medication', //Update title
+          widget.medicationData == null
+              ? 'Add Medication'
+              : 'Edit Medication', //Update title
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -283,7 +370,7 @@ class _AddMedPageState extends State<AddMedPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              //search bar controller -- NOT YET IMPLEMENTED needs OpenFDA API
+              //search bar controller
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 15.0),
                 child: Container(
@@ -292,25 +379,57 @@ class _AddMedPageState extends State<AddMedPage> {
                     border: Border.all(color: Color(0xFFFF6565)),
                     borderRadius: BorderRadius.circular(15),
                   ),
-                  //textfield for searching
+                  // Search bar with suggestions
                   child: Padding(
                     padding: const EdgeInsets.only(left: 20.0),
-                    child: TextField(
-                      controller: _searchBarController,
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        prefixIcon: Icon(Icons.search, color: Colors.black),
-                        hintText: 'Search for a name',
-                        hintStyle: TextStyle(fontSize: 18),
-                      ),
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Color(0xFF545354),
+                    child: TypeAheadField<String>(
+                      builder: (context, controller, focusNode) {
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            prefixIcon: Icon(Icons.search, color: Colors.black),
+                            hintText: 'Search for a name',
+                            hintStyle: TextStyle(fontSize: 18),
+                          ),
+                          style:
+                              TextStyle(fontSize: 18, color: Color(0xFF545354)),
+                        );
+                      },
+                      suggestionsCallback: (pattern) async {
+                        debugPrint(
+                            'Suggestions callback triggered with pattern: $pattern');
+                        if (pattern.isEmpty) {
+                          debugPrint(
+                              'Pattern is empty. Returning no suggestions.');
+                          return [];
+                        }
+                        final suggestions = await _fetchMedNames(pattern);
+                        debugPrint('Suggestions returned: $suggestions');
+                        return suggestions;
+                      },
+                      itemBuilder: (context, String suggestion) {
+                        return ListTile(
+                          title: Text(suggestion),
+                        );
+                      },
+                      onSelected: (String suggestion) {
+                        debugPrint('Suggestion selected: $suggestion');
+                        _medicationNameController.text = suggestion;
+                      },
+                      emptyBuilder: (context) => Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          'No medications found',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
+
               SizedBox(height: 20),
 
               //manual medication name controller -- this is all that will be used for now
