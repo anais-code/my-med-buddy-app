@@ -12,11 +12,12 @@ class AddMeasurementPage extends StatefulWidget {
 }
 
 class _AddMeasurementPageState extends State<AddMeasurementPage> {
+  //form key for validation
   final _formKey = GlobalKey<FormState>();
+  //vars for user input
   String? _selectedMeasurementType;
   final TextEditingController _heartRateController = TextEditingController();
-  final TextEditingController _bloodPressureController =
-      TextEditingController();
+  final TextEditingController _bloodPressureController = TextEditingController();
   final TextEditingController _bloodOxygenController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
@@ -51,6 +52,7 @@ class _AddMeasurementPageState extends State<AddMeasurementPage> {
         return;
       }
 
+      //check for measurement type input
       if (_selectedMeasurementType == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Please select a measurement type')),
@@ -79,6 +81,7 @@ class _AddMeasurementPageState extends State<AddMeasurementPage> {
           break;
     }
 
+      //try saving measurement data to firestore
       try {
         await FirebaseFirestore.instance
             .collection('users')
@@ -89,15 +92,18 @@ class _AddMeasurementPageState extends State<AddMeasurementPage> {
               'value': measurement,
               'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
             });
+        //navigate back to healt data page
         Navigator.pop(context);
       } catch (e) {
         debugPrint('Failed to save measurement: $e');
 
+        //display error for measurement saving failure
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to save measurement: $e')),
         );
       }
     } else {
+      //display error for invalid or missing user input
       debugPrint('Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please correct the errors in the form')),
@@ -192,7 +198,7 @@ class _AddMeasurementPageState extends State<AddMeasurementPage> {
                 ),
 
                 SizedBox(height: 16),
-                //heart rate
+                //heart rate textfield (if selected)
                 if (_selectedMeasurementType == 'Heart Rate') ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 25.0),
@@ -232,7 +238,7 @@ class _AddMeasurementPageState extends State<AddMeasurementPage> {
                   ),
                   SizedBox(height: 20),
                 ]
-                //blood pressure
+                //blood pressure textfield (if selected)
                 else if (_selectedMeasurementType == 'Blood Pressure') ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 25.0),
@@ -270,7 +276,7 @@ class _AddMeasurementPageState extends State<AddMeasurementPage> {
                   ),
                   SizedBox(height: 20),
                 ]
-                //blood oxygen
+                //blood oxygen textfield (if selected)
                 else if (_selectedMeasurementType == 'Blood Oxygen') ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 25.0),

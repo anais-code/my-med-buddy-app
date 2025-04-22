@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_med_buddy_app/Services/authentication.dart';
@@ -10,6 +9,8 @@ import 'signup_login.dart';
 import 'medication_page.dart';
 import 'health_data_page.dart';
 import '../Services/app_utils.dart';
+import 'appointment_page.dart';
+import 'dart:async';
 
 class SchedulePage extends StatefulWidget {
   const SchedulePage({super.key});
@@ -106,8 +107,29 @@ class _SchedulePageState extends State<SchedulePage> {
     return logsSnapshot.docs.isNotEmpty;
   }
 
+  Future<bool> _isDoseTaken(String medicationId, String doseTime) async {
+    final User? user = _auth.currentUser;
+    if (user == null) return false;
+
+    //added
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfToday = startOfToday.add(const Duration(days: 1));
+
+    final logsSnapshot = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('medicationLogs')
+        .where('medicationId', isEqualTo: medicationId)
+        .where('doseTime', isEqualTo: doseTime)
+        .get();
+
+    return logsSnapshot.docs.isNotEmpty;
+  }
+
   // Log medication taken
-  Future<void> _logMedicationTaken(String medicationId, medicationName) async {
+  Future<void> _logMedicationTaken(
+      String medicationId, String medicationName, String doseTime) async {
     final User? user = _auth.currentUser;
     if (user == null) return;
 
@@ -149,7 +171,10 @@ class _SchedulePageState extends State<SchedulePage> {
             .add({
           'medicationId': medicationId,
           'medicationName': medicationName,
-          'timestamp': FieldValue.serverTimestamp(),
+          'timestamp': Timestamp.now(),
+          'userId': user.uid,
+          'doseTime':
+              doseTime, // store the scheduled dose time, e.g., "8:00 AM"
         });
 
         // Update the streak counter
@@ -190,38 +215,57 @@ class _SchedulePageState extends State<SchedulePage> {
     if (user == null) return;
 
     final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final startOfTomorrow = startOfToday.add(const Duration(days: 1));
 
-    // Check if the user has logged any medication today
-    final logsSnapshot = await _firestore
+    // Query today's logs – only update streak on the very first log of the day.
+    final todayLogs = await _firestore
         .collection('users')
         .doc(user.uid)
         .collection('medicationLogs')
-        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-        .where('timestamp', isLessThan: endOfDay)
+        .where('timestamp', isGreaterThanOrEqualTo: startOfToday)
+        .where('timestamp', isLessThan: startOfTomorrow)
         .get();
 
-    if (logsSnapshot.docs.isNotEmpty) {
-      // User has logged medication today, increment streak
-      await _firestore.collection('users').doc(user.uid).update({
-        'streak': FieldValue.increment(1),
-      });
+    // Exit if this is not the first log (i.e. when there is already at least one log)
+    if (todayLogs.docs.length > 1) return;
+
+    final startOfYesterday = startOfToday.subtract(const Duration(days: 1));
+    final yesterdayLogs = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('medicationLogs')
+        .where('timestamp', isGreaterThanOrEqualTo: startOfYesterday)
+        .where('timestamp', isLessThan: startOfToday)
+        .get();
+
+    int newStreak;
+    if (yesterdayLogs.docs.isEmpty) {
+      // No log for yesterday: this is the first medication log, so set streak to 1
+      newStreak = 1;
     } else {
-      // User has not logged medication today, reset streak
-      await _firestore.collection('users').doc(user.uid).update({
-        'streak': 0,
-      });
+      // If there is a log from yesterday, increment the existing streak
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final currentStreak = (userDoc.data()?['streak'] ?? 0) as int;
+      newStreak = currentStreak + 1;
     }
+
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .update({'streak': newStreak});
+    debugPrint('Streak updated to $newStreak');
   }
 
   Future<List<Map<String, dynamic>>> _fetchMedicationData(
       List<QueryDocumentSnapshot> medications) async {
-    final List<Map<String, dynamic>> medicationData = [];
+    final List<Map<String, dynamic>> scheduleItems = [];
+
+    final now = DateTime.now();
 
     for (final med in medications) {
       final data = med.data() as Map<String, dynamic>;
-      final medicationId = med.id; // Access the document ID
+      final medicationId = med.id;
       debugPrint(
           'Processing medication: ${data['medicationName']}, ID: $medicationId');
 
@@ -229,52 +273,50 @@ class _SchedulePageState extends State<SchedulePage> {
       final isTaken = await _isMedicationTakenToday(medicationId);
       debugPrint('isTaken: $isTaken');
 
-      // Get the list of times for the medication, ensure correct type
+      // Get the list of times for the medication
       final medTimes = List<dynamic>.from(data['medTimes'] ?? []);
       debugPrint('medTimes: $medTimes');
 
-      // Get the current date and time
-      final now = DateTime.now();
+      for (int i = 0; i < medTimes.length; i++) {
+        final timeString = medTimes[i];
+        if (timeString is String) {
+          try {
+            final cleanedTimeString = _cleanTimeString(timeString);
+            final medTime = DateFormat('h:mm a').parse(cleanedTimeString);
+            final scheduledTime = DateTime(
+                now.year, now.month, now.day, medTime.hour, medTime.minute);
+            final doseTime = DateFormat.jm().format(scheduledTime);
 
-      // Parse each time string into a DateTime object
-      final parsedTimes = medTimes
-          .map((timeString) {
-            if (timeString is String) {
-              try {
-                final cleanedTimeString = _cleanTimeString(timeString);
-                debugPrint(
-                    'Original: $timeString, Cleaned: $cleanedTimeString');
-                final medTime = DateFormat('h:mm a').parse(cleanedTimeString);
-                debugPrint('Parsed: $medTime');
-                return DateTime(
-                    now.year, now.month, now.day, medTime.hour, medTime.minute);
-              } catch (e) {
-                debugPrint(
-                    'Failed to parse time string: $timeString, Error: $e');
-                return null;
-              }
-            } else {
-              debugPrint('Invalid time string: $timeString');
-              return null;
-            }
-          })
-          .whereType<DateTime>()
-          .toList();
+            // Check if this specific dose has been logged
+            final isTaken = await _isDoseTaken(medicationId, doseTime);
 
-      debugPrint('parsedTimes: $parsedTimes');
+            // Get dosage if exists
+            final List<dynamic> dosageList =
+                List<dynamic>.from(data['medDosages'] ?? []);
+            final dosage =
+                (dosageList.length > i) ? dosageList[i].toString() : '';
 
-      // Add the processed data to the list
-      medicationData.add({
-        ...data, // Include all existing data
-        'medicationId': medicationId, // Add the medication ID
-        'parsedTimes': parsedTimes, // Add the parsed times
-        'isTaken':
-            isTaken, // Add a flag to indicate if the medication has been taken
-      });
+            scheduleItems.add({
+              ...data,
+              'medicationId': medicationId,
+              'time': scheduledTime,
+              'formattedTime': doseTime,
+              'isTaken': isTaken,
+              'dosage': dosage,
+            });
+          } catch (e) {
+            debugPrint('Error parsing time: $e');
+          }
+        }
+      }
     }
 
-    debugPrint('Processed medications: ${medicationData.length}');
-    return medicationData;
+    // Sort all schedule items by their scheduled time
+    scheduleItems.sort(
+        (a, b) => (a['time'] as DateTime).compareTo(b['time'] as DateTime));
+
+    debugPrint('Processed schedule items: ${scheduleItems.length}');
+    return scheduleItems;
   }
 
   // Streak counter widget
@@ -423,12 +465,13 @@ class _SchedulePageState extends State<SchedulePage> {
             ),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: const Text('Calendar'),
+              title: const Text('Appointments'),
               onTap: () {
                 // Navigate to Calendar Page
-                Navigator.pop(context); // Close the drawer
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Navigating to Calendar Page')),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const AppointmentPage(),
+                  ),
                 );
               },
             ),
@@ -519,38 +562,37 @@ class _SchedulePageState extends State<SchedulePage> {
                   debugPrint('Processed ${medicationData.length} medications');
 
                   // Build the ListView to display the medications
-                  return ListView.builder(
+                  return ListView.separated(
                     padding: const EdgeInsets.only(left: 16.0, right: 16.0),
                     itemCount: medicationData.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       final data = medicationData[index];
                       debugPrint(
-                          'Displaying medication: ${data['medicationName']}');
+                          'Displaying scheduled medication: ${data['medicationName']} at ${data['formattedTime']}');
 
-                      // Only display medications that have not been taken today
-                      if (data['isTaken']) {
-                        return const SizedBox
-                            .shrink(); // Hide the medication if it has been taken
+                      // Only display if the medication has not been taken
+                      final now = DateTime.now();
+                      final midnight = DateTime(now.year, now.month, now.day);
+                      final nextMidnight = midnight.add(const Duration(days: 1));
+
+                      if (data['isTaken'] &&
+                          DateTime.now().isBefore(nextMidnight)) {
+                        return const SizedBox.shrink();
                       }
-                      // Build a Column for each medication
-                      return Column(
-                        children: [
-                          for (final medTime in data['parsedTimes'])
-                            // Build a schedule item for each time
-                            _buildScheduleItem(
-                              time: DateFormat.jm()
-                                  .format(medTime), // Format the time
-                              title: data['medicationName'], // Medication name
-                              subtitle:
-                                  '${(data['medDosages'] as List<dynamic>).join()} ${data['medUnits']}', // Dosage and units
-                              onCheck: () => _logMedicationTaken(
-                                  data['medicationId'],
-                                  data['medicationName']), // Log medication
-                              isTaken: data['isTaken'], // Pass the isTaken flag
+
+                      return _buildScheduleItem(
+                        time: data['formattedTime'],
+                        title: data['medicationName'],
+                        subtitle: '${data['dosage']} ${data['medUnits']}',
+                        onCheck: () => _logMedicationTaken(
+                            data['medicationId'],
+                            data['medicationName'],
+                            data[
+                                'formattedTime'] // pass the specific dose time here
                             ),
-                          // Add spacing between medications
-                          const SizedBox(height: 30),
-                        ],
+                        isTaken: data['isTaken'],
                       );
                     },
                   );
@@ -711,14 +753,13 @@ class _SchedulePageState extends State<SchedulePage> {
           ),
 
           // Log Medication Button or Checkmark
-          if (isTaken)
-            const Icon(Icons.check_circle,
-                color: Colors.green) // Show checkmark if taken
-          else
-            IconButton(
-              icon: const Icon(Icons.check, color: Colors.green),
-              onPressed: onCheck, // Allow logging if not taken
-            ),
+          //if (!isTaken)
+          IconButton(
+            icon: const Icon(Icons.check, color: Colors.green),
+            onPressed: onCheck, // Allow logging if not taken
+          )
+          //else
+          //const Icon(Icons.check_circle, color: Colors.green),
         ],
       ),
     );

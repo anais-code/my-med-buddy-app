@@ -21,15 +21,15 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
 
   //declare values for user age
   final List<String> ageOptions =
-      List.generate(100, (index) => (index + 1).toString());
+      List.generate(87, (index) => (index + 13).toString());
   //declare values for gender
   final List<String> genderOptions = ['Male', 'Female', 'Other'];
   //declare values for height in cm
   final List<String> heightOptions =
-      List.generate(250, (index) => "${index + 50} cm");
+      List.generate(250, (index) => "${index + 100} cm");
   //declare values for weight in lbs
   final List<String> weightOptions =
-      List.generate(400, (index) => "${index + 20} lbs");
+      List.generate(320, (index) => "${index + 80} lbs");
 
   //method to save user details to firestore db
   Future<void> saveDetails() async {

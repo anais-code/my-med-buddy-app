@@ -10,7 +10,7 @@ class SignupLoginPage extends StatefulWidget {
 }
 
 class _SignupLoginPageState extends State<SignupLoginPage> {
-  // Navigate to the LoginPage when login button is pressed
+  //go to login page when button is pressed
   void _goToLoginPage() {
     Navigator.push(
       context,
@@ -18,7 +18,7 @@ class _SignupLoginPageState extends State<SignupLoginPage> {
     );
   }
 
-  // Navigate to the LoginPage when login button is pressed
+  //go to sign up page when button is pressed
   void _goToSignupPage() {
     Navigator.push(
       context,

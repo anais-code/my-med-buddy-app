@@ -10,7 +10,7 @@ class AddProviderPage extends StatefulWidget {
 }
 
 class _AddProviderPageState extends State<AddProviderPage> {
-  //key to manage the form state
+  //key to manage the form validation
   final _formKey = GlobalKey<FormState>();
 
   //controllers for input related to provider
@@ -32,7 +32,7 @@ class _AddProviderPageState extends State<AddProviderPage> {
   }
 
   void _saveProvider() async {
-    //check to see if form is validated
+    //check to see if form input is valid
     if (_formKey.currentState!.validate()) {
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -40,6 +40,7 @@ class _AddProviderPageState extends State<AddProviderPage> {
         return;
       }
 
+      //create data map of user input and save to firestore
       try {
         Map<String, dynamic> providerData = {
           'providerName': _providerNameController.text.trim(),
@@ -54,6 +55,7 @@ class _AddProviderPageState extends State<AddProviderPage> {
             .collection('providers')
             .add(providerData);
 
+        //navigate to health data tab if successful
         Navigator.pop(context);
       } catch (e) {
         debugPrint('Failed to save provider information: $e');
@@ -63,6 +65,7 @@ class _AddProviderPageState extends State<AddProviderPage> {
         );
       }
     } else {
+      //display error message for inavlid or missing input
       debugPrint('Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please correct the errors in the form')),
@@ -250,6 +253,7 @@ class _AddProviderPageState extends State<AddProviderPage> {
                               child: TextFormField(
                                 controller: _providerEmailController,
                                 keyboardType: TextInputType.emailAddress,
+                                //format for valid email
                                 inputFormatters: [
                                   FilteringTextInputFormatter.allow(
                                       RegExp(r'[a-zA-Z0-9@._-]')),
@@ -262,7 +266,7 @@ class _AddProviderPageState extends State<AddProviderPage> {
                                       return 'Enter a valid email';
                                     }
                                   }
-                                  return null; // Pass validation if empty or valid
+                                  return null;
                                 },
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
@@ -308,20 +312,19 @@ class _AddProviderPageState extends State<AddProviderPage> {
                 ),
                 SizedBox(height: 20),
 
-                //save button -- lots of these types of buttons repeated so we should make it a widget
+                //save button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25.0),
                   child: GestureDetector(
-                    //when clicked it should save meds to firestore and schedule notifs
-                    //let's hope :/
+                    //saves health prov data to firestore
                     onTap: _saveProvider,
                     child: Container(
                       padding: EdgeInsets.all(25),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            Color(0xFFFF6565), //left colour
-                            Color(0xFFFF5050) //right colour
+                            Color(0xFFFF6565),
+                            Color(0xFFFF5050)
                           ],
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
@@ -341,11 +344,11 @@ class _AddProviderPageState extends State<AddProviderPage> {
                     ),
                   ),
                 ),
-                //end of stuff
               ],
             ),
-          ))),
-      //body end
+          )
+        )
+      ),
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_med_buddy_app/widgets/section_divider.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:my_med_buddy_app/Services/notifications.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
@@ -22,7 +21,8 @@ class AddMedPage extends StatefulWidget {
 
 class _AddMedPageState extends State<AddMedPage> {
   //initialise controllers for text input from user
-  final _searchBarController = TextEditingController();
+  //final _searchBarController = TextEditingController();
+  TextEditingController? _searchBarController;
   final _medicationNameController = TextEditingController();
   final _currentInventoryController = TextEditingController();
   final _inventoryThresholdController = TextEditingController();
@@ -90,37 +90,37 @@ class _AddMedPageState extends State<AddMedPage> {
       return [];
     }
 
-    // Encode the query to handle special characters
+    //encode url to handle special chars
     final encodedQuery = Uri.encodeComponent(query.trim().toLowerCase());
 
-    // Construct the API URL
+    //api url definition to search for brand names
     final url =
         'https://api.fda.gov/drug/label.json?search=openfda.brand_name:$encodedQuery&limit=50';
 
     try {
       final response = await http.get(Uri.parse(url));
 
+      //if respinse is sucessful, parse json data and put into list
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List results = data['results'] ?? [];
 
-        // Extract brand names
+        //get brand names from results and convert to string list
         List<String> suggestions = results
             .map((item) {
-              final brandNames = item['openfda']?['brand_name']
-                  as List<dynamic>?; // Explicitly cast as List<dynamic>
+              final brandNames =
+                  item['openfda']?['brand_name'] as List<dynamic>?;
               return (brandNames != null && brandNames.isNotEmpty)
-                  ? brandNames.first
-                      as String // Explicitly cast first item as String
+                  ? brandNames.first as String
                   : '';
             })
             .where((name) => name.isNotEmpty)
             .toList();
-          
-        // Filter suggestions to only return those starting with the query (case insensitive)
+
+        //filter suggestions based on start of query
         suggestions = suggestions.where((name) {
           return name.toLowerCase().startsWith(query.toLowerCase());
-          }).toList();
+        }).toList();
 
         return suggestions;
       } else {
@@ -137,7 +137,7 @@ class _AddMedPageState extends State<AddMedPage> {
   void initState() {
     super.initState();
 
-    // Pre-fill the form fields if medicationData is provided
+    //prefill the form if the user has an exisitng medication -- used for dynamic form editing
     if (widget.medicationData != null) {
       _medicationNameController.text = widget.medicationData!['medicationName'];
       _currentInventoryController.text =
@@ -151,7 +151,7 @@ class _AddMedPageState extends State<AddMedPage> {
           widget.medicationData!['isThresholdReminderEnabled'];
       _notesController.text = widget.medicationData!['notes'];
 
-      // Pre-fill medTimes and medDosages if available
+      //prefill med time and dosage
       if (widget.medicationData!['medTimes'] != null) {
         medTimes = (widget.medicationData!['medTimes'] as List)
             .map((time) => time != null ? _parseTimeString(time) : null)
@@ -163,26 +163,10 @@ class _AddMedPageState extends State<AddMedPage> {
     }
   }
 
-  /*Future<void> _requestNotificationPermissions() async {
-    final status = await Permission.notification.status;
-    if (!status.isGranted) {
-      await Permission.notification.request();
-    }
-    if (!status.isGranted) {
-      debugPrint('Notification permissions not granted');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text('Notification permissions are required for reminders.')),
-      );
-    }
-  }*/
-
   @override
   //dispose of controllers to help with in app memory management
   void dispose() {
-    _searchBarController.dispose();
+    //_searchBarController.dispose();
     _medicationNameController.dispose();
     _currentInventoryController.dispose();
     _inventoryThresholdController.dispose();
@@ -199,15 +183,35 @@ class _AddMedPageState extends State<AddMedPage> {
   }
 
   //method to save medication to firestore collection, linked to uid
-  //NEEDS TRY CATCH IMPLEMENTATION
   void _saveMedication() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print('User not logged in');
+    //ensure medication name, units and times are filled out
+    if (_medicationNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a medication name.')),
+      );
       return;
     }
 
-    // Validate medFrequency and medTimes
+    if (medUnits == null || medUnits!.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a unit for your medication.')),
+      );
+      return;
+    }
+    if (medTimes.any((time) => time == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a time for each dose.')),
+      );
+      return;
+    }
+
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('User not logged in');
+      return;
+    }
+
+    //validate frequency and times
     if (medFrequency != medTimes.length) {
       debugPrint('medFrequency and medTimes length mismatch');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,7 +221,7 @@ class _AddMedPageState extends State<AddMedPage> {
     }
 
     try {
-      // Save medication data to Firestore
+      //save med to firestore
       Map<String, dynamic> medData = {
         'medicationName': _medicationNameController.text,
         'medUnits': medUnits,
@@ -231,15 +235,15 @@ class _AddMedPageState extends State<AddMedPage> {
         'isThresholdReminderEnabled': _isThresholdReminderEnabled,
         'notes': _notesController.text,
       };
+      //if no med ID exisits, add data as new medication in firestore
       if (widget.medicationId == null) {
-        // Add new medication
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .collection('medications')
             .add(medData);
       } else {
-        // Update existing medication
+        //update data if med exists
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -248,7 +252,7 @@ class _AddMedPageState extends State<AddMedPage> {
             .update(medData);
       }
 
-      // Cancel existing notifications if reminders are disabled
+      //cancel notifs if reminders are disables
       if (!_isMedReminderEnabled) {
         for (int i = 0; i < medFrequency; i++) {
           try {
@@ -259,10 +263,8 @@ class _AddMedPageState extends State<AddMedPage> {
         }
       }
 
-      // Schedule notifications if enabled
+      //schedyle notif is reminders are enabled
       if (_isMedReminderEnabled) {
-        //notif working implementation -- no permissions
-
         for (int i = 0; i < medFrequency; i++) {
           if (medTimes[i] != null) {
             TimeOfDay time = medTimes[i]!;
@@ -278,48 +280,16 @@ class _AddMedPageState extends State<AddMedPage> {
             );
           }
         }
-
-        //end
-
-        /*await _requestNotificationPermissions(); // Request permissions
-
-        if (await Permission.notification.status.isGranted) {
-          await Notifications().showNotification(
-          id: 0,
-          title: 'Test Notification',
-          body: 'This is a test notification',
-        );
-
-          for (int i = 0; i < medFrequency; i++) {
-            if (medTimes[i] != null) {
-              TimeOfDay time = medTimes[i]!;
-              try {
-                await Notifications().scheduleNotification(
-                  id: i,
-                  title: 'Medication Reminder',
-                  body:
-                  'Take ${_medicationNameController.text}: ${medDosages[i]
-                      .toString()} ${medUnits ?? ''}',
-                  hour: time.hour,
-                  minute: time.minute,
-                );
-              } catch (e) {
-                debugPrint('Failed to schedule notification: $e');
-              }
-            }
-          }
-        }*/
       }
 
-      // Check if the widget is still mounted before using context
       if (!mounted) return;
-      // Navigate back on success
+      //return to medications page if succcessful
       Navigator.pop(context);
     } catch (e) {
       debugPrint('Failed to save medication: $e');
 
-      // Check if the widget is still mounted before using context
       if (!mounted) return;
+      //show error if saving fails
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save medication: $e')),
       );
@@ -330,15 +300,12 @@ class _AddMedPageState extends State<AddMedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFDFFEF),
-      // Light background color
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         title: Text(
-          widget.medicationData == null
-              ? 'Add Medication'
-              : 'Edit Medication', //Update title
+          widget.medicationData == null ? 'Add Medication' : 'Edit Medication',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -379,11 +346,13 @@ class _AddMedPageState extends State<AddMedPage> {
                     border: Border.all(color: Color(0xFFFF6565)),
                     borderRadius: BorderRadius.circular(15),
                   ),
-                  // Search bar with suggestions
                   child: Padding(
                     padding: const EdgeInsets.only(left: 20.0),
+
+                    //allows for suggestions to be shown
                     child: TypeAheadField<String>(
                       builder: (context, controller, focusNode) {
+                        _searchBarController = controller;
                         return TextField(
                           controller: controller,
                           focusNode: focusNode,
@@ -414,9 +383,12 @@ class _AddMedPageState extends State<AddMedPage> {
                           title: Text(suggestion),
                         );
                       },
+                      //place selected text in med name textfield
+                      //this is saved to firestore
                       onSelected: (String suggestion) {
                         debugPrint('Suggestion selected: $suggestion');
                         _medicationNameController.text = suggestion;
+                        _searchBarController?.clear();
                       },
                       emptyBuilder: (context) => Padding(
                         padding: const EdgeInsets.all(8.0),
@@ -432,7 +404,7 @@ class _AddMedPageState extends State<AddMedPage> {
 
               SizedBox(height: 20),
 
-              //manual medication name controller -- this is all that will be used for now
+              //manual medication name controller
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 15.0),
                 child: Container(
