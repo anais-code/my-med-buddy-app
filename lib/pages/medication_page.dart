@@ -8,6 +8,7 @@ import 'health_data_page.dart';
 import 'milestone_page.dart';
 import 'add_med_page.dart';
 import 'package:my_med_buddy_app/widgets/section_divider.dart';
+import 'appointment_page.dart';
 
 class MedicationPage extends StatefulWidget {
   const MedicationPage({super.key});
@@ -227,12 +228,13 @@ class _MedicationPageState extends State<MedicationPage> {
             ),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: const Text('Calendar'),
+              title: const Text('Appointments'),
               onTap: () {
                 // Navigate to Calendar Page
-                Navigator.pop(context); // Close the drawer
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Navigating to Calendar Page')),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const AppointmentPage(),
+                  ),
                 );
               },
             ),
@@ -319,21 +321,6 @@ class _MedicationPageState extends State<MedicationPage> {
           SizedBox(height: 10),
           SectionDivider(),
           SizedBox(height: 10),
-
-          /*Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: EdgeInsets.only(left: 16),
-              child: const Text(
-                "Current Medications",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-          ),*/
 
           //display all user medications
           Expanded(
@@ -454,7 +441,7 @@ class _MedicationPageState extends State<MedicationPage> {
                 },
               ),
 
-              //mediation page icon
+              //medication page icon
               IconButton(
                 icon: Image.asset(
                   'assets/images/mmb_medication_icon.png',

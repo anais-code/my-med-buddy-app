@@ -9,14 +9,16 @@ class ForgotPasswordPage extends StatefulWidget {
 }
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
-  // Text controller for email input
+  //controller for email input
   final _emailController = TextEditingController();
-  // AuthServices instance for password reset
+  
+  //auth service instance to use for password reset
   final AuthServices _authServices = AuthServices();
-  // Loading state
+  
+  //loading state
   bool _isLoading = false;
 
-  // Method to handle password reset
+  //method for password reset
   Future<void> _resetPassword() async {
     if (_emailController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -30,7 +32,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
 
     try {
-      // Call the password reset method from AuthServices
+      //uses reset pass method from auth services
       String result = await _authServices.resetPassword(
         email: _emailController.text.trim(),
       );
@@ -41,7 +43,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         SnackBar(content: Text(result)),
       );
 
-      // Navigate back to the login page after successful reset
+      //naviagte to login after reset email is sent
       if (result == "Password reset email sent") {
         Navigator.pop(context);
       }
@@ -72,7 +74,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // MMB Mascot
+                //MMB Mascot
                 const SizedBox(height: 60),
                 Image.asset(
                   'assets/images/mmb_mascot.png',
@@ -80,7 +82,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // Title
+                
                 const Text(
                   'Forgot Password?',
                   style: TextStyle(
@@ -91,7 +93,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Subtitle
+                
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 25.0),
                   child: Text(
@@ -105,7 +107,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: 50),
 
-                // Email Input
+                //input for email
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25.0),
                   child: Container(
@@ -133,7 +135,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: 30),
 
-                // Reset Password Button
+                //reset password button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25.0),
                   child: GestureDetector(
@@ -167,10 +169,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Back to Login Link
+                //takes user back to login
                 GestureDetector(
                   onTap: () {
-                    Navigator.pop(context); // Go back to the login page
+                    Navigator.pop(context);
                   },
                   child: const Text(
                     'Back to Login',

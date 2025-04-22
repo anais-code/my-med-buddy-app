@@ -6,9 +6,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'medication_page.dart';
 import 'schedule_page.dart';
 import 'milestone_page.dart';
+import 'appointment_page.dart';
 import 'add_measurement.dart';
 import 'add_provider.dart';
 import 'package:my_med_buddy_app/widgets/section_divider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class HealthDataPage extends StatefulWidget {
   const HealthDataPage({super.key});
@@ -61,6 +65,147 @@ class _HealthDataPageState extends State<HealthDataPage> {
       setState(() {
         _isLoading = false; // Stop loading on error
       });
+    }
+  }
+
+  //method to gen pdf
+  Future<void> _generatePdf() async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('No user is currently signed in');
+        return;
+      }
+
+      //get user data
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() as Map<String, dynamic>?;
+
+      //get meds for user + map them to a list
+      final medicationsSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('medications')
+          .get();
+      final medications =
+          medicationsSnapshot.docs.map((doc) => doc.data()).toList();
+
+      //get measurements and map to list
+      final measurementsSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('measurements')
+          .get();
+      final measurements =
+          measurementsSnapshot.docs.map((doc) => doc.data()).toList();
+
+      //create pdf doc
+      final pdf = pw.Document();
+
+      //add single page to pdf
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Health Data Report',
+                  style: pw.TextStyle(
+                      fontSize: 24, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 16),
+
+                //display basic user information at top of pdf
+                if (userData != null) ...[
+                  pw.Text(
+                      'Name: ${userData['firstName']} ${userData['lastName']}'),
+                  pw.Text('Age: ${userData['age'] ?? 'N/A'}'),
+                  pw.Text('Height: ${userData['height'] ?? 'N/A'}'),
+                  pw.Text('Conditions: ${userData['conditions'] ?? 'N/A'}'),
+                  pw.SizedBox(height: 16),
+                ],
+
+                //medications
+                pw.Text(
+                  'Medications',
+                  style: pw.TextStyle(
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                if (medications.isNotEmpty)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: medications.map((med) {
+                      return pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            '• ',
+                            style: pw.TextStyle(fontSize: 12),
+                          ),
+                          pw.SizedBox(width: 5),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Medication: ${med['medicationName']}, Frequency: ${med['medFrequency']} times(s) daily',
+                              style: pw.TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  )
+                else
+                  pw.Text('No medications found'),
+                pw.SizedBox(height: 16),
+
+                //measurements
+                pw.Text(
+                  'Measurements',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 8),
+                if (measurements.isNotEmpty)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: measurements.map((mes) {
+                      return pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            '• ',
+                            style: pw.TextStyle(fontSize: 12),
+                          ),
+                          pw.SizedBox(width: 5),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Measurement: ${mes['measurementType']}, Value: ${mes['value']}, Date: ${mes['date']}',
+                              style: pw.TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  )
+                else
+                  pw.Text('No measurements found'),
+              ],
+            );
+          },
+        ),
+      );
+      debugPrint('PDF generated successfully');
+
+      //preview pdf to save or print
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+      );
+      debugPrint('PDF sent to printer');
+    } catch (e) {
+      debugPrint('Error generating PDF: $e');
     }
   }
 
@@ -174,21 +319,23 @@ class _HealthDataPageState extends State<HealthDataPage> {
               leading: const Icon(Icons.home),
               title: const Text('Home'),
               onTap: () {
-                // Navigate to Home Page
-                Navigator.pop(context); // Close the drawer
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Navigating to Home Page')),
+                //go to schedule page
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SchedulePage(),
+                  ),
                 );
               },
             ),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: const Text('Calendar'),
+              title: const Text('Appointments'),
               onTap: () {
-                // Navigate to Calendar Page
-                Navigator.pop(context); // Close the drawer
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Navigating to Calendar Page')),
+                //go to appointment page
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const AppointmentPage(),
+                  ),
                 );
               },
             ),
@@ -230,7 +377,7 @@ class _HealthDataPageState extends State<HealthDataPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            //healt data button
+            //health data measurement button
             Padding(
               padding:
                   const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
@@ -275,8 +422,10 @@ class _HealthDataPageState extends State<HealthDataPage> {
             ),
 
             //display current measurements
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.3,
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.30,
+              ),
               child: StreamBuilder(
                 stream: FirebaseFirestore.instance
                     .collection('users')
@@ -298,9 +447,8 @@ class _HealthDataPageState extends State<HealthDataPage> {
                     children: [
                       ListView.builder(
                         itemCount: measurements.length,
-                        shrinkWrap:
-                            true,
-                        physics: NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        physics: ClampingScrollPhysics(),
                         //creates a dynamic list of measurements
                         itemBuilder: (context, index) {
                           final mes = measurements[index];
@@ -359,14 +507,14 @@ class _HealthDataPageState extends State<HealthDataPage> {
                           );
                         },
                       ),
+                      SectionDivider(),
                     ],
                   );
                 },
               ),
             ),
 
-            SectionDivider(),
-            SizedBox(height: 8),
+            SizedBox(height: 5),
 
             Align(
               alignment: Alignment.centerLeft,
@@ -430,8 +578,10 @@ class _HealthDataPageState extends State<HealthDataPage> {
             SizedBox(height: 8),
 
             //display current providers
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.35,
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.50,
+              ),
               child: StreamBuilder(
                 stream: FirebaseFirestore.instance
                     .collection('users')
@@ -453,9 +603,8 @@ class _HealthDataPageState extends State<HealthDataPage> {
                     children: [
                       ListView.builder(
                         itemCount: providers.length,
-                        shrinkWrap:
-                            true, // Important: prevents ListView from taking infinite height
-                        physics: NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        physics: ClampingScrollPhysics(),
                         itemBuilder: (context, index) {
                           final prov = providers[index];
                           final data = prov.data() as Map<String, dynamic>;
@@ -520,6 +669,48 @@ class _HealthDataPageState extends State<HealthDataPage> {
                           );
                         },
                       ),
+
+                      //end of providers
+
+                      //gen pdf
+                      SectionDivider(),
+
+                      //gen pdf button
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8.0, horizontal: 18.0),
+                        child: GestureDetector(
+                          onTap: _generatePdf,
+                          child: Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Color(0xFFFFE3E3),
+                              borderRadius: BorderRadius.circular(50),
+                              border: Border.all(
+                                color: Color(0xFFFF5050),
+                                width: 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Generate PDF Report',
+                                    style: TextStyle(
+                                      color: Color(0xFF545354),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      //end
                     ],
                   );
                 },
